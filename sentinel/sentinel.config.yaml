@@ -1,0 +1,35 @@
+ignore_paths:
+  - node_modules/
+  - .git/
+  - dist/
+  - build/
+  - target/
+  - vendor/
+  - coverage/
+  - __pycache__/
+
+blocking_threshold: 75
+
+severity_thresholds:
+  critical: 85
+  high: 65
+  medium: 40
+  low: 0
+
+custom_rules_path: rules/
+false_positive_exclusions: []
+max_file_size: 2000000
+
+scan_file_extensions:
+  - .py
+  - .js
+  - .ts
+  - .java
+  - .env
+  - .yml
+  - .yaml
+  - .json
+  - .xml
+  - .conf
+
+demo_mode: true

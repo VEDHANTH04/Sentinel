@@ -1,0 +1,45 @@
+rules:
+  - id: aws-access-key
+    name: AWS Access Key ID
+    pattern: "AKIA[0-9A-Z]{16}"
+    secret_type: aws_access_key
+    severity: Critical
+    description: AWS access key ID detected
+    remediation: Revoke key in IAM and use env vars / secrets manager
+    weight: 95
+
+  - id: github-token
+    name: GitHub Personal Access Token
+    pattern: "gh[pousr]_[A-Za-z0-9]{36,}"
+    secret_type: github_token
+    severity: Critical
+    description: GitHub token detected
+    remediation: Revoke token in GitHub settings immediately
+    weight: 95
+
+  - id: generic-api-key
+    name: Generic API Key Assignment
+    pattern: "(?i)(api[_-]?key|apikey)\\s*[=:]\\s*['\"][A-Za-z0-9_\\-]{16,}['\"]"
+    secret_type: generic_api_key
+    severity: High
+    description: Generic API key assignment pattern
+    remediation: Move to environment variable / secret manager
+    weight: 70
+
+  - id: private-key-header
+    name: Private Key Header
+    pattern: "-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----"
+    secret_type: private_key
+    severity: Critical
+    description: PEM private key header detected
+    remediation: Remove key from repo history and rotate
+    weight: 98
+
+  - id: generic-secret-assignment
+    name: Generic Secret/Password Assignment
+    pattern: "(?i)(secret|password|passwd|pwd)\\s*[=:]\\s*['\"][^'\"\\s]{8,}['\"]"
+    secret_type: generic_secret
+    severity: Medium
+    description: Generic secret/password-like assignment
+    remediation: Use secrets manager or env var
+    weight: 55

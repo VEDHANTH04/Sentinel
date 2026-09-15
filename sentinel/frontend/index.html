@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SENTINEL — Secret Leak Detection</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+  :root{
+    --bg:#0b0d10; --bg-2:#0f1216;
+    --panel:#14171c; --panel-2:#181c22;
+    --border:#242830; --border-strong:#33393f;
+    --text:#e7e9ec; --text-2:#9aa2ad; --text-3:#5f6772;
+    --accent:#2dd4bf; --accent-dim:#0f3a35;
+    --red:#f04747; --red-dim:#2a1416;
+    --amber:#f5a623; --amber-dim:#2a2110;
+    --green:#3ecf8e; --green-dim:#0f2a1f;
+    --blue:#4f8cf7;
+    --radius:10px;
+    --font:'Inter',ui-sans-serif,system-ui,-apple-system,sans-serif;
+    --mono:'JetBrains Mono',ui-monospace,monospace;
+  }
+  *{box-sizing:border-box;}
+  body{
+    background:var(--bg); color:var(--text); font-family:var(--font);
+    margin:0; padding:20px 24px 48px; font-size:14px; line-height:1.45;
+  }
+  ::selection{background:var(--accent-dim); color:var(--accent);}
+  a{color:var(--accent);}
+
+  /* ---------- Header ---------- */
+  .header{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:12px 16px; background:var(--panel); border:1px solid var(--border);
+    border-radius:var(--radius); margin-bottom:16px; flex-wrap:wrap; gap:12px;
+  }
+  .brand{display:flex; align-items:center; gap:10px;}
+  .brand-icon{
+    width:32px; height:32px; border-radius:8px; background:var(--accent-dim);
+    display:flex; align-items:center; justify-content:center; flex-shrink:0;
+  }
+  .brand-title{font-size:16px; font-weight:700; letter-spacing:0.5px; color:var(--text);}
+  .brand-sub{font-size:12px; color:var(--text-2); margin-top:1px;}
+  .header-status{display:flex; align-items:center; gap:16px; flex-wrap:wrap;}
+  .status-pill{
+    display:flex; align-items:center; gap:6px; font-size:12px; color:var(--text-2);
+    padding:5px 10px; background:var(--bg-2); border:1px solid var(--border); border-radius:20px;
+  }
+  .dot{width:7px; height:7px; border-radius:50%; flex-shrink:0;}
+  .dot-green{background:var(--green); box-shadow:0 0 0 3px var(--green-dim);}
+  .dot-red{background:var(--red); box-shadow:0 0 0 3px var(--red-dim);}
+  .dot-pulse{animation:pulse 2s ease-in-out infinite;}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.35;}}
+  .btn{
+    display:inline-flex; align-items:center; gap:6px; font-family:var(--font); font-size:12px; font-weight:500;
+    color:var(--text); background:var(--bg-2); border:1px solid var(--border-strong);
+    border-radius:8px; padding:6px 12px; cursor:pointer; transition:background .15s, border-color .15s;
+  }
+  .btn:hover{background:var(--panel-2); border-color:var(--accent);}
+  .btn:active{transform:scale(0.98);}
+  .btn-icon{width:14px; height:14px;}
+
+  /* ---------- Hero / security overview ---------- */
+  .hero{
+    display:grid; grid-template-columns:1.4fr 1fr; gap:16px; margin-bottom:16px;
+  }
+  @media (max-width:860px){ .hero{grid-template-columns:1fr;} }
+  .hero-text h1{font-size:20px; font-weight:600; margin:0 0 4px;}
+  .hero-text p{font-size:13px; color:var(--text-2); margin:0 0 14px; max-width:52ch;}
+  .hero-panel{
+    background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); padding:16px;
+    display:flex; flex-direction:column; justify-content:center;
+  }
+  .shield-row{display:flex; align-items:center; gap:12px; margin-bottom:12px;}
+  .shield{
+    width:40px; height:40px; border-radius:50%; flex-shrink:0;
+    background:var(--green-dim); display:flex; align-items:center; justify-content:center;
+    position:relative;
+  }
+  .shield::after{
+    content:''; position:absolute; inset:-4px; border-radius:50%;
+    border:1px solid var(--green); opacity:0.4; animation:ring 2.4s ease-out infinite;
+  }
+  @keyframes ring{0%{transform:scale(0.85); opacity:0.5;}100%{transform:scale(1.25); opacity:0;}}
+  .shield-status-title{font-size:14px; font-weight:600; color:var(--green);}
+  .shield-status-sub{font-size:12px; color:var(--text-2);}
+  .mini-stats{display:grid; grid-template-columns:repeat(2,1fr); gap:8px;}
+  .mini-stat{
+    background:var(--bg-2); border:1px solid var(--border); border-radius:8px; padding:8px 10px;
+  }
+  .mini-stat-label{font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-3);}
+  .mini-stat-value{font-size:15px; font-weight:600; margin-top:2px;}
+
+  /* ---------- KPI cards ---------- */
+  .kpi-grid{
+    display:grid; grid-template-columns:repeat(5,1fr); gap:12px; margin-bottom:16px;
+  }
+  @media (max-width:1100px){ .kpi-grid{grid-template-columns:repeat(3,1fr);} }
+  @media (max-width:640px){ .kpi-grid{grid-template-columns:repeat(2,1fr);} }
+  .kpi{
+    background:var(--panel); border:1px solid var(--border); border-radius:var(--radius);
+    padding:14px; transition:border-color .15s, transform .15s;
+  }
+  .kpi:hover{border-color:var(--border-strong); transform:translateY(-1px);}
+  .kpi-top{display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;}
+  .kpi-icon{
+    width:26px; height:26px; border-radius:6px; display:flex; align-items:center; justify-content:center;
+  }
+  .kpi-num{font-size:26px; font-weight:700; line-height:1;}
+  .kpi-label{font-size:11px; color:var(--text-2); text-transform:uppercase; letter-spacing:0.4px; margin-top:6px;}
+  .kpi-ctx{font-size:11px; color:var(--text-3); margin-top:4px;}
+
+  /* ---------- Section grid ---------- */
+  .section-grid{display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;}
+  @media (max-width:900px){ .section-grid{grid-template-columns:1fr;} }
+  .panel{
+    background:var(--panel); border:1px solid var(--border); border-radius:var(--radius);
+    padding:16px; display:flex; flex-direction:column;
+  }
+  .panel-header{display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;}
+  .panel-title{font-size:12px; font-weight:600; letter-spacing:0.6px; text-transform:uppercase; color:var(--text-2);}
+  .panel-title-icon{margin-right:6px; color:var(--accent);}
+
+  /* ---------- Empty states ---------- */
+  .empty-state{
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    text-align:center; padding:22px 12px; gap:8px; flex:1;
+  }
+  .empty-icon{
+    width:36px; height:36px; border-radius:50%; background:var(--bg-2); border:1px solid var(--border);
+    display:flex; align-items:center; justify-content:center; color:var(--text-3);
+  }
+  .empty-title{font-size:12px; font-weight:600; letter-spacing:0.4px; color:var(--text-2);}
+  .empty-sub{font-size:12px; color:var(--text-3); max-width:32ch;}
+  .empty-good .empty-icon{color:var(--green); border-color:var(--green-dim); background:var(--green-dim);}
+  .empty-good .empty-title{color:var(--green);}
+
+  /* ---------- Severity rows / threat distribution ---------- */
+  .sev-rows{display:flex; flex-direction:column; gap:6px;}
+  .sev-row{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:7px 10px; background:var(--bg-2); border:1px solid var(--border); border-radius:8px; font-size:12px;
+  }
+  .sev-row-left{display:flex; align-items:center; gap:8px;}
+  .sev-swatch{width:8px; height:8px; border-radius:2px;}
+  .sev-count{font-weight:600; font-family:var(--mono); font-size:12px;}
+  .donut-wrap{position:relative; width:120px; height:120px; margin:0 auto 12px;}
+  .donut-center{
+    position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+  }
+  .donut-center .n{font-size:20px; font-weight:700;}
+  .donut-center .l{font-size:9px; color:var(--text-3); text-transform:uppercase; letter-spacing:0.4px;}
+  .threat-body{display:flex; gap:16px; align-items:center;}
+  @media (max-width:500px){ .threat-body{flex-direction:column;} }
+
+  /* ---------- Tables ---------- */
+  table{width:100%; border-collapse:collapse; font-size:12.5px;}
+  th{
+    text-align:left; padding:8px 10px; color:var(--text-3); font-weight:500; font-size:10.5px;
+    text-transform:uppercase; letter-spacing:0.4px; border-bottom:1px solid var(--border);
+  }
+  td{padding:8px 10px; border-bottom:1px solid var(--border); color:var(--text);}
+  tr:last-child td{border-bottom:none;}
+  tbody tr{transition:background .12s;}
+  tbody tr:hover{background:var(--bg-2);}
+  .mono{font-family:var(--mono); font-size:12px;}
+  .badge{
+    display:inline-flex; align-items:center; padding:2px 8px; border-radius:20px;
+    font-size:10.5px; font-weight:600; letter-spacing:0.3px;
+  }
+  .badge-Critical{color:var(--red); background:var(--red-dim);}
+  .badge-High{color:var(--amber); background:var(--amber-dim);}
+  .badge-Medium{color:#e8d44d; background:#2a2710;}
+  .badge-Low{color:var(--text-2); background:var(--bg-2); border:1px solid var(--border);}
+  .badge-open{color:var(--amber); background:var(--amber-dim);}
+  .badge-resolved{color:var(--green); background:var(--green-dim);}
+  .badge-clean{color:var(--green); background:var(--green-dim);}
+  .badge-blocked{color:var(--red); background:var(--red-dim);}
+  .redacted{font-family:var(--mono); color:var(--text-3); letter-spacing:1px;}
+
+  /* ---------- Scan status card ---------- */
+  .scan-status{
+    display:flex; align-items:center; gap:12px; padding:14px; border-radius:var(--radius);
+    background:var(--panel); border:1px solid var(--border); margin-bottom:16px;
+  }
+  .scan-status-icon{
+    width:38px; height:38px; border-radius:8px; display:flex; align-items:center; justify-content:center; flex-shrink:0;
+  }
+  .scan-status-title{font-size:13px; font-weight:600;}
+  .scan-status-sub{font-size:12px; color:var(--text-2);}
+
+  /* ---------- Loading skeleton ---------- */
+  .skeleton{background:linear-gradient(90deg,var(--bg-2) 25%,var(--panel-2) 37%,var(--bg-2) 63%); background-size:400% 100%; animation:shimmer 1.4s ease infinite; border-radius:6px;}
+  @keyframes shimmer{0%{background-position:100% 0;}100%{background-position:0 0;}}
+
+  /* ---------- 3D visual ---------- */
+  #shield3d{width:100%; height:150px; border-radius:8px; overflow:hidden;}
+
+  /* ---------- Error banner ---------- */
+  .error-banner{
+    display:flex; align-items:center; justify-content:space-between; gap:12px;
+    background:var(--red-dim); border:1px solid #4a1f22; color:#ff9b9b;
+    padding:12px 16px; border-radius:var(--radius); margin-bottom:16px; font-size:13px;
+  }
+
+  .fade-in{animation:fadeIn .35s ease both;}
+  @keyframes fadeIn{from{opacity:0; transform:translateY(3px);}to{opacity:1; transform:translateY(0);}}
+
+  footer{text-align:center; color:var(--text-3); font-size:11px; margin-top:20px;}
+</style>
+</head>
+<body>
+
+<div id="error-container"></div>
+
+<div class="header">
+  <div class="brand">
+    <div class="brand-icon">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2dd4bf" stroke-width="2"><path d="M12 2l8 3v6c0 5-3.4 8.4-8 11-4.6-2.6-8-6-8-11V5l8-3z"/><path d="M9 12l2 2 4-4"/></svg>
+    </div>
+    <div>
+      <div class="brand-title">SENTINEL</div>
+      <div class="brand-sub">Secret leak detection &amp; repository security</div>
+    </div>
+  </div>
+  <div class="header-status">
+    <span class="status-pill" id="api-status"><span class="dot dot-pulse" style="background:var(--text-3)"></span>Checking API…</span>
+    <span class="status-pill"><span class="dot dot-green"></span>Scanner: READY</span>
+    <button class="btn" id="refresh-btn">
+      <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.5 9a9 9 0 0114.8-3.4L23 10M1 14l4.7 4.4A9 9 0 0020.5 15"/></svg>
+      Refresh
+    </button>
+  </div>
+</div>
+
+<div class="hero">
+  <div class="hero-text">
+    <h1>Repository security overview</h1>
+    <p>Real-time visibility into credential leaks and repository security, backed by SENTINEL's pre-commit scanning and risk engine.</p>
+    <div class="scan-status" id="scan-status-card" style="margin-bottom:0;">
+      <div class="scan-status-icon" style="background:var(--accent-dim);">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2dd4bf" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+      </div>
+      <div>
+        <div class="scan-status-title">Ready to scan</div>
+        <div class="scan-status-sub">Run <code class="mono">sentinel scan --staged</code> in your repo to analyze it.</div>
+      </div>
+    </div>
+  </div>
+  <div class="hero-panel">
+    <div class="shield-row">
+      <div class="shield">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3ecf8e" stroke-width="2"><path d="M12 2l8 3v6c0 5-3.4 8.4-8 11-4.6-2.6-8-6-8-11V5l8-3z"/><path d="M9 12l2 2 4-4"/></svg>
+      </div>
+      <div>
+        <div class="shield-status-title" id="shield-title">SYSTEM PROTECTED</div>
+        <div class="shield-status-sub" id="shield-sub">All systems operating normally</div>
+      </div>
+    </div>
+    <div class="mini-stats">
+      <div class="mini-stat"><div class="mini-stat-label">API</div><div class="mini-stat-value" id="mini-api">—</div></div>
+      <div class="mini-stat"><div class="mini-stat-label">Scanner</div><div class="mini-stat-value" style="color:var(--green)">Ready</div></div>
+      <div class="mini-stat"><div class="mini-stat-label">Active threats</div><div class="mini-stat-value" id="mini-threats">—</div></div>
+      <div class="mini-stat"><div class="mini-stat-label">Compliance</div><div class="mini-stat-value" id="mini-compliance">—</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="kpi-grid" id="kpi-grid"></div>
+
+<div class="section-grid">
+  <div class="panel">
+    <div class="panel-header">
+      <div class="panel-title"><svg class="btn-icon panel-title-icon" style="display:inline;vertical-align:-2px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M18 9l-5 5-4-4-4 4"/></svg>Security activity</div>
+    </div>
+    <div id="activity-content"></div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-header">
+      <div class="panel-title"><svg class="btn-icon panel-title-icon" style="display:inline;vertical-align:-2px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 3"/></svg>Threat distribution</div>
+    </div>
+    <div id="threat-content"></div>
+  </div>
+</div>
+
+<div class="section-grid">
+  <div class="panel">
+    <div class="panel-header">
+      <div class="panel-title"><svg class="btn-icon panel-title-icon" style="display:inline;vertical-align:-2px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/></svg>Recent scans</div>
+    </div>
+    <div id="scans-content"></div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-header">
+      <div class="panel-title"><svg class="btn-icon panel-title-icon" style="display:inline;vertical-align:-2px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 3v6c0 5-3.4 8.4-8 11-4.6-2.6-8-6-8-11V5l8-3z"/></svg>Detected secrets</div>
+    </div>
+    <div id="findings-content"></div>
+  </div>
+</div>
+
+<div class="panel" id="shield3d-panel" style="margin-bottom:16px;">
+  <div class="panel-header">
+    <div class="panel-title">Repository shield</div>
+  </div>
+  <div id="shield3d"></div>
+</div>
+
+<footer>SENTINEL v0.1.0 — secrets are always redacted; raw values are never stored or displayed.</footer>
+
+<script>
+const API = "http://localhost:8000";
+const sevColor = { Critical:"var(--red)", High:"var(--amber)", Medium:"#e8d44d", Low:"var(--text-2)" };
+const sevHex   = { Critical:"#f04747", High:"#f5a623", Medium:"#e8d44d", Low:"#5f6772" };
+
+function iconWrap(svgInner, bg, color){
+  return `<div class="kpi-icon" style="background:${bg}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2">${svgInner}</svg></div>`;
+}
+
+function emptyState(icon, title, sub, good){
+  return `<div class="empty-state ${good ? 'empty-good' : ''}">
+    <div class="empty-icon">${icon}</div>
+    <div class="empty-title">${title}</div>
+    <div class="empty-sub">${sub}</div>
+  </div>`;
+}
+
+const ICONS = {
+  scan: '<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>',
+  key: '<circle cx="7" cy="14" r="4"/><path d="M11 10l9-9M17 4l3 3M14 7l3 3"/>',
+  block: '<circle cx="12" cy="12" r="9"/><path d="M6 6l12 12"/>',
+  check: '<path d="M20 6L9 17l-5-5"/>',
+  percent: '<circle cx="7" cy="7" r="2.5"/><circle cx="17" cy="17" r="2.5"/><path d="M18 6L6 18"/>',
+  shield: '<path d="M12 2l8 3v6c0 5-3.4 8.4-8 11-4.6-2.6-8-6-8-11V5l8-3z"/>',
+  clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/>',
+};
+
+function setApiStatus(online){
+  const el = document.getElementById("api-status");
+  if(online){
+    el.innerHTML = '<span class="dot dot-green"></span>API: Online';
+  } else {
+    el.innerHTML = '<span class="dot dot-red"></span>API: Offline';
+  }
+  document.getElementById("mini-api").textContent = online ? "Online" : "Offline";
+  document.getElementById("mini-api").style.color = online ? "var(--green)" : "var(--red)";
+}
+
+function renderKpis(m){
+  const cards = [
+    { num:m.total_scans, label:"Total scans", ctx: m.total_scans ? "Repository activity detected" : "No scans run yet",
+      icon:iconWrap(ICONS.scan, "var(--accent-dim)", "#2dd4bf") },
+    { num:m.total_findings, label:"Potential secrets", ctx: m.total_findings ? "Findings detected" : "No active threats",
+      icon:iconWrap(ICONS.key, m.total_findings ? "var(--red-dim)" : "var(--green-dim)", m.total_findings ? "#f04747" : "#3ecf8e") },
+    { num:m.blocked_commits, label:"Blocked commits", ctx: m.blocked_commits ? "Malicious commits blocked" : "No malicious commits blocked",
+      icon:iconWrap(ICONS.block, m.blocked_commits ? "var(--red-dim)" : "var(--green-dim)", m.blocked_commits ? "#f04747" : "#3ecf8e") },
+    { num:m.unresolved_findings, label:"Unresolved", ctx: m.unresolved_findings ? "Need attention" : "All findings resolved",
+      icon:iconWrap(ICONS.check, m.unresolved_findings ? "var(--amber-dim)" : "var(--green-dim)", m.unresolved_findings ? "#f5a623" : "#3ecf8e") },
+    { num:m.compliance_score+"%", label:"Compliance", ctx: m.compliance_score===100 ? "Security requirements satisfied" : "Below target",
+      icon:iconWrap(ICONS.percent, "var(--accent-dim)", "#2dd4bf") },
+  ];
+  document.getElementById("kpi-grid").innerHTML = cards.map(c => `
+    <div class="kpi fade-in">
+      <div class="kpi-top">${c.icon}</div>
+      <div class="kpi-num">${c.num}</div>
+      <div class="kpi-label">${c.label}</div>
+      <div class="kpi-ctx">${c.ctx}</div>
+    </div>`).join("");
+}
+
+function renderHero(m){
+  const threats = m.unresolved_findings || 0;
+  document.getElementById("mini-threats").textContent = threats;
+  document.getElementById("mini-threats").style.color = threats ? "var(--red)" : "var(--text)";
+  document.getElementById("mini-compliance").textContent = m.compliance_score + "%";
+  if(threats > 0){
+    document.getElementById("shield-title").textContent = "THREATS DETECTED";
+    document.getElementById("shield-title").style.color = "var(--red)";
+    document.getElementById("shield-sub").textContent = threats + " unresolved finding" + (threats===1?"":"s") + " need attention";
+  } else {
+    document.getElementById("shield-title").textContent = "SYSTEM PROTECTED";
+    document.getElementById("shield-title").style.color = "var(--green)";
+    document.getElementById("shield-sub").textContent = "All systems operating normally";
+  }
+}
+
+function renderScanStatusCard(m){
+  const card = document.getElementById("scan-status-card");
+  const icon = card.querySelector(".scan-status-icon");
+  const title = card.querySelector(".scan-status-title");
+  const sub = card.querySelector(".scan-status-sub");
+  if(m.total_scans === 0){
+    icon.style.background = "var(--accent-dim)";
+    icon.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2dd4bf" stroke-width="2">${ICONS.scan}</svg>`;
+    title.textContent = "Ready to scan";
+    sub.innerHTML = 'Run <code class="mono">sentinel scan --staged</code> in your repo to analyze it.';
+  } else if(m.unresolved_findings > 0){
+    icon.style.background = "var(--red-dim)";
+    icon.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f04747" stroke-width="2">${ICONS.block}</svg>`;
+    title.textContent = "Threats detected";
+    title.style.color = "var(--red)";
+    sub.textContent = m.unresolved_findings + " unresolved finding(s) — review below.";
+  } else {
+    icon.style.background = "var(--green-dim)";
+    icon.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3ecf8e" stroke-width="2">${ICONS.check}</svg>`;
+    title.textContent = "Repository secure";
+    title.style.color = "var(--green)";
+    sub.textContent = "Last scan completed with no blocking findings.";
+  }
+}
+
+function renderActivity(scans){
+  const el = document.getElementById("activity-content");
+  if(!scans || scans.length === 0){
+    el.innerHTML = emptyState(
+      `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${ICONS.clock}</svg>`,
+      "NO SCAN HISTORY", "Run repository scans to build your security timeline.");
+    return;
+  }
+  const labels = scans.slice().reverse().map(s => "#"+s.id);
+  const findingCounts = scans.slice().reverse().map(s => s.total_findings || 0);
+  el.innerHTML = `
+    <div style="display:flex; gap:16px; margin-bottom:10px; font-size:11px; color:var(--text-2);">
+      <span>${scans.length} scan${scans.length===1?'':'s'} total</span>
+      <span>${scans.filter(s=>!s.total_findings).length} clean</span>
+      <span>${scans.reduce((a,s)=>a+(s.total_findings||0),0)} findings</span>
+    </div>
+    <div style="position:relative; height:150px;"><canvas id="activityChart"></canvas></div>`;
+  new Chart(document.getElementById("activityChart"), {
+    type: "bar",
+    data: { labels, datasets: [{ label:"Findings per scan", data: findingCounts,
+      backgroundColor:"#2dd4bf", borderRadius:4, maxBarThickness:22 }] },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ display:false } },
+      scales:{
+        x:{ ticks:{ color:"#5f6772", font:{size:10} }, grid:{ display:false } },
+        y:{ ticks:{ color:"#5f6772", font:{size:10}, precision:0 }, grid:{ color:"#1c2027" } }
+      }
+    }
+  });
+}
+
+function renderThreatDistribution(findings){
+  const el = document.getElementById("threat-content");
+  const counts = { Critical:0, High:0, Medium:0, Low:0 };
+  findings.forEach(f => { if(counts[f.severity] !== undefined) counts[f.severity]++; });
+  const total = counts.Critical + counts.High + counts.Medium + counts.Low;
+
+  const rows = Object.keys(counts).map(k => `
+    <div class="sev-row">
+      <div class="sev-row-left"><span class="sev-swatch" style="background:${sevHex[k]}"></span>${k}</div>
+      <span class="sev-count" style="color:${counts[k] ? sevColor[k] : 'var(--text-3)'}">${counts[k]}</span>
+    </div>`).join("");
+
+  if(total === 0){
+    el.innerHTML = `
+      ${emptyState(`<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${ICONS.check}</svg>`,
+        "0 ACTIVE THREATS", "No secrets detected in the latest scan.", true)}
+      <div class="sev-rows">${rows}</div>`;
+    return;
+  }
+
+  el.innerHTML = `
+    <div class="threat-body">
+      <div class="donut-wrap">
+        <canvas id="threatDonut"></canvas>
+        <div class="donut-center"><div class="n">${total}</div><div class="l">Findings</div></div>
+      </div>
+      <div class="sev-rows" style="flex:1;">${rows}</div>
+    </div>`;
+  new Chart(document.getElementById("threatDonut"), {
+    type: "doughnut",
+    data: { labels: Object.keys(counts), datasets: [{ data: Object.values(counts),
+      backgroundColor: Object.keys(counts).map(k=>sevHex[k]), borderWidth:0 }] },
+    options: { responsive:true, maintainAspectRatio:false, cutout:"72%",
+      plugins:{ legend:{ display:false } } }
+  });
+}
+
+function renderScans(scans){
+  const el = document.getElementById("scans-content");
+  if(!scans || scans.length === 0){
+    el.innerHTML = emptyState(
+      `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/></svg>`,
+      "NO RECENT SCANS", "Run a scan to see repository activity here.");
+    return;
+  }
+  const rows = scans.slice(0,6).map(s => {
+    const clean = !s.total_findings;
+    return `<tr>
+      <td>#${s.id}</td>
+      <td class="mono">${s.files_scanned ?? '—'} files</td>
+      <td class="mono">${s.total_findings ?? 0} findings</td>
+      <td class="mono">${(s.critical_count||0)+(s.high_count||0)} blocked</td>
+      <td><span class="badge ${clean ? 'badge-clean' : 'badge-blocked'}">${clean ? 'CLEAN' : 'FLAGGED'}</span></td>
+      <td style="color:var(--text-3); font-size:11px;">${s.status || 'completed'}</td>
+    </tr>`;
+  }).join("");
+  el.innerHTML = `<table><thead><tr><th>Scan</th><th>Files</th><th>Findings</th><th>Blocked</th><th>Status</th><th>State</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+function renderFindings(findings){
+  const el = document.getElementById("findings-content");
+  if(!findings || findings.length === 0){
+    el.innerHTML = emptyState(
+      `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${ICONS.check}</svg>`,
+      "NO SECRETS DETECTED", "Your repository is currently clean.", true);
+    return;
+  }
+  const rows = findings.slice(0,8).map(f => `
+    <tr>
+      <td class="mono">${f.secret_type}</td>
+      <td class="mono" title="${f.file_path}">${(f.file_path||'').split('/').pop()}</td>
+      <td class="mono">L${f.line_number}</td>
+      <td><span class="badge badge-${f.severity}">${f.severity.toUpperCase()}</span></td>
+      <td><span class="badge badge-${f.status}">${f.status}</span></td>
+    </tr>`).join("");
+  el.innerHTML = `<table><thead><tr><th>Type</th><th>File</th><th>Line</th><th>Severity</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+function showLoading(){
+  ["kpi-grid"].forEach(id => {
+    document.getElementById(id).innerHTML = Array.from({length:5}).map(()=>
+      `<div class="kpi"><div class="skeleton" style="height:26px;width:60%;margin-bottom:10px;"></div><div class="skeleton" style="height:10px;width:80%;"></div></div>`).join("");
+  });
+  ["activity-content","threat-content","scans-content","findings-content"].forEach(id => {
+    document.getElementById(id).innerHTML = `<div class="skeleton" style="height:120px;width:100%;"></div>`;
+  });
+}
+
+function showError(err){
+  document.getElementById("error-container").innerHTML = `
+    <div class="error-banner">
+      <div>
+        <strong>BACKEND OFFLINE</strong> — Unable to connect to Sentinel API at ${API}.
+      </div>
+      <button class="btn" id="retry-btn">Retry connection</button>
+    </div>`;
+  document.getElementById("retry-btn").addEventListener("click", load);
+  setApiStatus(false);
+}
+
+async function load(){
+  showLoading();
+  document.getElementById("error-container").innerHTML = "";
+  try{
+    const [metrics, findings, scans] = await Promise.all([
+      fetch(`${API}/api/v1/metrics`).then(r=>{ if(!r.ok) throw new Error(r.status); return r.json(); }),
+      fetch(`${API}/api/v1/findings`).then(r=>{ if(!r.ok) throw new Error(r.status); return r.json(); }),
+      fetch(`${API}/api/v1/scans`).then(r=>{ if(!r.ok) throw new Error(r.status); return r.json(); }),
+    ]);
+    setApiStatus(true);
+    renderKpis(metrics);
+    renderHero(metrics);
+    renderScanStatusCard(metrics);
+    renderActivity(scans);
+    renderThreatDistribution(findings);
+    renderScans(scans);
+    renderFindings(findings);
+    initShield3d(metrics.unresolved_findings > 0);
+  } catch(err){
+    showError(err);
+  }
+}
+
+document.getElementById("refresh-btn").addEventListener("click", load);
+
+// Subtle wireframe shield — small, elegant, respects reduced motion.
+function initShield3d(threatened){
+  const container = document.getElementById("shield3d");
+  const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if(reduced || typeof THREE === "undefined"){
+    document.getElementById("shield3d-panel").style.display = "none";
+    return;
+  }
+  container.innerHTML = "";
+  const w = container.clientWidth, h = 150;
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(45, w/h, 0.1, 100);
+  camera.position.set(0, 0, 6);
+  const renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true });
+  renderer.setSize(w, h);
+  container.appendChild(renderer.domElement);
+
+  const geo = new THREE.IcosahedronGeometry(2, 1);
+  const mat = new THREE.MeshBasicMaterial({
+    color: threatened ? 0xf04747 : 0x2dd4bf, wireframe:true, transparent:true, opacity:0.55
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  scene.add(mesh);
+
+  function animate(){
+    requestAnimationFrame(animate);
+    mesh.rotation.y += 0.003;
+    mesh.rotation.x += 0.0012;
+    renderer.render(scene, camera);
+  }
+  animate();
+}
+
+load();
+</script>
+</body>
+</html>
